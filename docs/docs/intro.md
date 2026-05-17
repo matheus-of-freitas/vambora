@@ -16,18 +16,20 @@ sidebar_position: 1
 - **Data sources** — every external feed we depend on, with quirks and integration notes.
 - **Development** — how to run the stack locally and what conventions apply.
 
-## Repos
+## Layout
 
-| Repo | Purpose |
+A single monorepo (`vambora`):
+
+| Path | Purpose |
 |---|---|
-| `vambora-backend` | API + ingestion workers (Python 3.12 + FastAPI + TimescaleDB + PostGIS) |
-| `vambora-web` | Next.js 15 PWA |
-| `vambora-android` | Native Android (Kotlin + Compose) |
-| `vambora-docs` | This site |
+| `backend/` | API + ingestion/alert workers (Python 3.12 + FastAPI + TimescaleDB + PostGIS) |
+| `web/` | Next.js 15 PWA |
+| `docs/` | This site (Docusaurus 3) |
 
-The single source of truth for the product is the top-level `plan.md` in the parent project. This site dereferences it into focused, navigable documentation.
+A native Android app (Kotlin + Compose) is planned. This site is the
+navigable documentation for the architecture and decisions.
 
-## Goals (from `plan.md`)
+## Goals
 
 - Real-time tracking of buses, BRT, and VLT in Rio.
 - Multi-modal route planning with transfers.

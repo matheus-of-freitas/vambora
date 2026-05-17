@@ -44,7 +44,10 @@ jobs:
       - name: Unit tests
         run: uv run pytest -m unit -q
 
-  test-integration:
+  test-coverage:
+    # Full suite (unit + testcontainers integration) with a regression gate.
+    # Current total ~75%; the floor is set conservatively below that so a
+    # small refactor doesn't flake CI while real coverage drops still fail.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -52,8 +55,8 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync
-      - name: Integration tests (testcontainers — Docker on the runner)
-        run: uv run pytest -m integration -q
+      - name: Tests + coverage gate (Docker on the runner for testcontainers)
+        run: uv run pytest --cov=src --cov-report=term-missing --cov-fail-under=70 -q
 
   image:
     runs-on: ubuntu-latest
