@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Maskable icons need a 20% safe-zone padding (per W3C spec) so OS-level
+       circular/squircle masking doesn't crop the mark. The art here lives in
+       the inner 60% diameter. -->
+  <rect width="512" height="512" fill="#fbbf24"/>
+  <circle cx="256" cy="256" r="120" fill="#09090b"/>
+  <path d="M204 234 H308 V312 a14 14 0 0 1 -14 14 H218 a14 14 0 0 1 -14 -14 Z" fill="#fbbf24"/>
+  <rect x="218" y="248" width="76" height="28" rx="6" fill="#09090b"/>
+</svg>

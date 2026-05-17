@@ -1,0 +1,22 @@
+[
+  {
+    "ordem": "B11622",
+    "latitude": "-22,90842",
+    "longitude": "-43,23829",
+    "datahora": "1778261832000",
+    "velocidade": "5",
+    "linha": "363",
+    "datahoraenvio": "1778261843000",
+    "datahoraservidor": "1778261874000"
+  },
+  {
+    "ordem": "A72101",
+    "latitude": "-22,88916",
+    "longitude": "-43,29199",
+    "datahora": "1778261833000",
+    "velocidade": "0",
+    "linha": "422",
+    "datahoraenvio": "1778261843000",
+    "datahoraservidor": "1778261848000"
+  }
+]

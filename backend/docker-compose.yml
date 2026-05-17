@@ -1,0 +1,79 @@
+services:
+  db:
+    image: timescale/timescaledb-ha:pg16
+    container_name: vambora-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vambora
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vambora"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: vambora-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  # OpenTripPlanner v2. Builds an in-memory graph from ./otp/rio.osm.pbf
+  # (Greater-Rio metro street network, clipped from the state extract — see
+  # plan.md "Appendix: OTP / Routing") + ./otp/rio-gtfs.zip on every start,
+  # honouring ./otp/build-config.json, then serves the GTFS GraphQL API at
+  # :8080/otp/gtfs/v1.
+  #
+  # build-config.json pins transitServiceStart/End to a tight one-month window
+  # around the dev date (GTFS_DATE_OVERRIDE=2024-05-08). OTP's default window
+  # is relative to the build date and would exclude the stale 2024 TUMI feed
+  # entirely; a wide window (e.g. multi-year) builds millions of timetables
+  # and OOMs on a 7.7 GB Docker, so the window MUST stay narrow and MUST
+  # contain GTFS_DATE_OVERRIDE.
+  #
+  # Graph build is slow (several minutes) and memory-hungry. On a 7.7 GB
+  # Docker the build sits right on the edge, so `--save` persists graph.obj
+  # to the mounted ./otp dir on first success. For routine runs swap the
+  # command to ["--load", "--serve"] (loads graph.obj in seconds, low memory,
+  # no rebuild). Delete otp/graph.obj to force a rebuild after changing the
+  # OSM/GTFS inputs or build-config.json. See plan.md "Appendix: OTP /
+  # Routing". `start_period` keeps the healthcheck from failing the container
+  # while the graph builds.
+  otp:
+    image: opentripplanner/opentripplanner:2.5.0
+    container_name: vambora-otp
+    # The image entrypoint already passes /var/opentripplanner/ as the base
+    # directory, so command must contain ONLY option flags (a second dir arg
+    # makes OTP error "You must supply a single directory name").
+    # Steady state: load the saved otp/graph.obj (seconds, low memory, no
+    # rebuild). To regenerate the graph after changing the OSM/GTFS inputs or
+    # build-config.json: `rm otp/graph.obj`, set this to
+    # ["--build", "--save", "--serve"], stop db/redis to free RAM, `up` once,
+    # then revert to ["--load", "--serve"].
+    command: ["--load", "--serve"]
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx4g"
+    volumes:
+      - ./otp:/var/opentripplanner
+    ports:
+      - "8080:8080"
+    healthcheck:
+      # OTP 2.5 does not expose /otp/actuators/health; the API index at /otp
+      # returns 200 once the graph is built and the server is serving.
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/otp || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 900s
+
+volumes:
+  postgres-data:

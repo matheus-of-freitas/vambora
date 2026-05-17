@@ -1,0 +1,13 @@
+{
+  "app": {
+    "title": "Vambora",
+    "tagline": "Seu transporte público no Rio em tempo real."
+  },
+  "map": {
+    "loading": "Carregando ônibus...",
+    "error": "Não foi possível carregar os ônibus em tempo real.",
+    "retry": "Tentar novamente",
+    "lastUpdated": "Atualizado às {time}",
+    "vehicles": "{count, plural, =0 {Nenhum ônibus} =1 {1 ônibus} other {# ônibus}}"
+  }
+}

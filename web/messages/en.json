@@ -1,0 +1,13 @@
+{
+  "app": {
+    "title": "Vambora",
+    "tagline": "Real-time public transit for Rio de Janeiro."
+  },
+  "map": {
+    "loading": "Loading buses...",
+    "error": "Could not load real-time buses.",
+    "retry": "Retry",
+    "lastUpdated": "Updated at {time}",
+    "vehicles": "{count, plural, =0 {No buses} =1 {1 bus} other {# buses}}"
+  }
+}

@@ -1,0 +1,7 @@
+# Internal working docs — kept local, not published.
+# plan.md is the AI-agent design source-of-truth; credentials.md is the
+# internal (non-secret) infra/account roadmap; docs/docs/operations/* are
+# personal deploy/provisioning runbooks (not project documentation).
+/plan.md
+/credentials.md
+/docs/docs/operations/

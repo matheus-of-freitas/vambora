@@ -1,0 +1,21 @@
+services:
+  db:
+    image: timescale/timescaledb-ha:pg16
+    container_name: vambora-spike-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vambora
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - postgres-data:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vambora"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres-data:

@@ -1,0 +1,61 @@
+{
+  "name": "vambora-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "biome check src tests && pnpm lint:design",
+    "lint:design": "bash scripts/lint-design.sh",
+    "format": "biome format --write src tests",
+    "typecheck": "tsc --noEmit",
+    "gen:api": "openapi-typescript ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8002}/openapi.json -o src/shared/api/schema.d.ts",
+    "pages:build": "npx @cloudflare/next-on-pages@1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@tanstack/react-query": "^5.59.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "idb": "^8.0.3",
+    "lucide-react": "^1.14.0",
+    "maplibre-gl": "^4.7.1",
+    "next": "^15.5.0",
+    "next-intl": "^3.26.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss-animate": "^1.0.7",
+    "zustand": "^5.0.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@cloudflare/next-on-pages": "^1.13.16",
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^22.7.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "happy-dom": "^15.7.4",
+    "openapi-typescript": "^7.13.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "wrangler": "^4.92.0"
+  },
+  "packageManager": "pnpm@10.23.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@biomejs/biome",
+      "esbuild",
+      "sharp"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+.env
+.env.local
+.next/
+node_modules/
+.pnpm-store/
+.vercel/
+playwright-report/
+test-results/
+coverage/
+*.log
+*.tsbuildinfo
+.DS_Store

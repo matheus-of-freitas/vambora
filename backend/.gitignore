@@ -1,0 +1,24 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+uv.lock
+postgres-data/
+dist/
+build/
+*.egg-info/
+
+# Offline bundles — built artifacts, regenerated from the catalog
+snapshots/
+
+# OTP graph inputs/outputs — large, regenerated from public sources
+otp/*.osm.pbf
+otp/*.zip
+otp/graph.obj
+otp/*.json.gz
