@@ -61,5 +61,4 @@ Everything runs locally with no cloud accounts. Per-component setup:
 
 ## License
 
-Intended open-source under the MIT license. A `LICENSE` file has not yet
-been committed — until then, no license is granted.
+MIT — see [`LICENSE`](LICENSE).

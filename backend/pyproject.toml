@@ -3,6 +3,7 @@ name = "vambora-backend"
 version = "0.1.0"
 description = "Vambora — backend API and ingestion workers."
 readme = "README.md"
+license = { text = "MIT" }
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
