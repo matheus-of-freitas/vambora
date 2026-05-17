@@ -18,6 +18,7 @@ from vambora.adapters.outbound.persistence.unit_of_work import Database
 
 # Tables to truncate between tests, in FK-safe order.
 _TABLES = [
+    "alert_rules",
     "vehicle_positions",
     "gtfs_shapes",
     "gtfs_frequencies",

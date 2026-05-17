@@ -205,3 +205,31 @@ async def test_arrivals_filter_by_from_seconds(db) -> None:  # type: ignore[no-u
         limit=20,
     )
     assert [a.arrival_seconds for a in arrivals] == [23460, 24060, 24660]
+
+
+async def test_snapshot_bulk_reads(db) -> None:  # type: ignore[no-untyped-def]
+    """The offline-bundle bulk reads (only fakes-tested via BuildSnapshot)
+    against a real DB: all stops, per-line shapes, median headways, the
+    stop→lines index, and the latest feed version."""
+    repo = PostgresCatalogRepository(db)
+    await repo.replace_all(_bundle())
+
+    stops = await repo.all_stops(limit=1000)
+    assert {s.stop_id for s in stops} == {"S1", "S2"}
+    assert {s.name for s in stops} == {"Fundão", "General Osório"}
+
+    line_shapes = await repo.all_line_shapes()
+    assert set(line_shapes) == {"485"}
+    assert len(line_shapes["485"]) == 1  # one distinct shape on the line
+    assert len(line_shapes["485"][0]) == 2  # two shape points
+    first = line_shapes["485"][0][0]
+    assert first.latitude == pytest.approx(-22.857, abs=1e-3)
+    assert first.longitude == pytest.approx(-43.231, abs=1e-3)
+
+    # _bundle: one frequency, headway_secs=600 → median 600.
+    assert await repo.line_headways() == {"485": 600}
+
+    # Both stops are served by line 485 (sorted serving short_names).
+    assert await repo.stop_line_index() == {"S1": ["485"], "S2": ["485"]}
+
+    assert await repo.latest_feed_version() == "test-01"

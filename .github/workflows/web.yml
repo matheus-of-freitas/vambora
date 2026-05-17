@@ -1,13 +1,23 @@
-name: CI
+name: web
 
 on:
   push:
     branches: [main]
+    paths:
+      - "web/**"
+      - ".github/workflows/web.yml"
   pull_request:
+    paths:
+      - "web/**"
+      - ".github/workflows/web.yml"
 
 concurrency:
-  group: ci-web-${{ github.ref }}
+  group: web-${{ github.ref }}
   cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: web
 
 jobs:
   quality:
@@ -15,10 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
@@ -28,10 +41,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
 
@@ -41,11 +57,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      # Plain `next build` — verifies the app compiles. The Cloudflare Pages
+      # deploy runs `@cloudflare/next-on-pages` separately (Connect-to-Git).
+      # No Playwright e2e here: it needs a running backend + dev server.
       - run: pnpm build
         env:
           NEXT_PUBLIC_API_BASE_URL: http://localhost:8002
