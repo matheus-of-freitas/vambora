@@ -7,6 +7,8 @@ WORKDIR /app
 FROM base AS builder
 RUN pip install --no-cache-dir uv==0.4.*
 COPY pyproject.toml ./
+# pyproject sets `readme = "README.md"`, so the build needs it present.
+COPY README.md ./
 COPY src ./src
 RUN uv pip install --system --no-cache .
 
