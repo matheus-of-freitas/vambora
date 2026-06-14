@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from vambora.adapters.inbound.http.dependencies import Container, container
 from vambora.adapters.inbound.http.schemas.routing import ItineraryDTO, PlanTripRequest
@@ -14,6 +14,14 @@ async def plan_trip(
     body: PlanTripRequest,
     c: Container = Depends(container),
 ) -> list[ItineraryDTO]:
+    # Trip planning needs OpenTripPlanner, which isn't part of the serverless
+    # deployment. Return a clear 503 rather than failing against an
+    # unreachable OTP. See plan.md decision #15.
+    if not c.settings.routing_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="trip planning is temporarily unavailable",
+        )
     itineraries = await c.plan_trip(
         origin=Coordinate(latitude=body.origin.lat, longitude=body.origin.lon),
         destination=Coordinate(latitude=body.destination.lat, longitude=body.destination.lon),

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Protocol
 
 from vambora.domain.catalog import Route, ScheduledArrival, Stop
@@ -34,6 +34,18 @@ class VehiclePositionRepository(Protocol):
     async def hourly_stats_for_line(self, *, line_id: str, hours: int) -> list[HourlyLineStat]:
         """Hourly aggregate buckets for a line, newest first, read from the
         ``vehicle_positions_hourly`` continuous aggregate."""
+        ...
+
+    async def refresh_hourly_rollup(self, *, hours: int) -> int:
+        """Recompute ``vehicle_positions_hourly`` over the trailing ``hours``
+        from raw rows (upsert by bucket+line). Stands in for the Timescale
+        continuous-aggregate policy on plain Postgres. Returns rows written."""
+        ...
+
+    async def purge_raw_before(self, *, cutoff: datetime) -> int:
+        """Delete raw ``vehicle_positions`` recorded before ``cutoff``. Stands
+        in for the Timescale retention policy on plain Postgres. Returns rows
+        deleted."""
         ...
 
 
