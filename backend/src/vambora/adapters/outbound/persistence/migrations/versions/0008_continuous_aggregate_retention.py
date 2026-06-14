@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from alembic import op
 
+from vambora.adapters.outbound.persistence.migrations._timescale import timescale_enabled
+
 revision = "0008"
 down_revision = "0007"
 branch_labels = None
@@ -25,6 +27,9 @@ CAGG = "vehicle_positions_hourly"
 
 
 def upgrade() -> None:
+    if not timescale_enabled(op.get_bind()):
+        _upgrade_plain()
+        return
     with op.get_context().autocommit_block():
         op.execute(
             f"""
@@ -68,7 +73,30 @@ def upgrade() -> None:
         )
 
 
+def _upgrade_plain() -> None:
+    # Plain Postgres has no continuous aggregate. Create an ordinary table with
+    # the identical shape so _HOURLY_STATS_SQL is unchanged; CompactTrackingData
+    # (run from the poller Lambda) populates it and enforces raw retention,
+    # standing in for the continuous-aggregate and retention policies above.
+    op.execute(
+        f"""
+        CREATE TABLE {CAGG} (
+            bucket          TIMESTAMPTZ  NOT NULL,
+            line_id         TEXT         NOT NULL,
+            position_count  BIGINT       NOT NULL,
+            vehicle_count   BIGINT       NOT NULL,
+            avg_speed_kmh   DOUBLE PRECISION,
+            max_speed_kmh   DOUBLE PRECISION,
+            PRIMARY KEY (bucket, line_id)
+        )
+        """
+    )
+
+
 def downgrade() -> None:
+    if not timescale_enabled(op.get_bind()):
+        op.execute(f"DROP TABLE IF EXISTS {CAGG}")
+        return
     with op.get_context().autocommit_block():
         op.execute("SELECT remove_retention_policy('vehicle_positions', if_exists => true)")
         # Dropping the materialized view also removes its refresh policy.

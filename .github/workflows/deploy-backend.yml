@@ -1,0 +1,95 @@
+name: deploy-backend
+
+# Deploys the backend to AWS (Lambda function URL + scheduled poller) after the
+# backend CI passes on main. Manual dispatch is available for re-runs. See
+# docs/docs/operations/aws-serverless.md for the one-time bootstrap (OIDC role,
+# Supabase database, GitHub secrets).
+
+on:
+  workflow_run:
+    workflows: [backend]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # OIDC: assume the deploy role, no long-lived keys
+  contents: read
+
+jobs:
+  deploy:
+    # Skip when triggered by a failed CI run (manual dispatch has no
+    # workflow_run payload, so the condition passes).
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-24.04-arm
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install SAM CLI
+        run: pipx install aws-sam-cli
+
+      - name: Check lambda/requirements.txt is in sync with the lock
+        run: |
+          uv export --no-dev --no-emit-project --no-hashes --no-annotate --no-header \
+            > /tmp/requirements.expected
+          diff -u lambda/requirements.txt /tmp/requirements.expected \
+            || { echo "::error::lambda/requirements.txt is stale — run 'make lambda-requirements'"; exit 1; }
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: sa-east-1
+
+      - name: Apply database migrations
+        env:
+          # env.py loads Settings when sqlalchemy.url is unset; it migrates
+          # using DATABASE_URL_SYNC. Force the plain-Postgres branch on the
+          # managed (non-Timescale) database.
+          VAMBORA_DISABLE_TIMESCALE: "1"
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_SYNC: ${{ secrets.DATABASE_URL_SYNC }}
+          SPPO_URL: https://dados.mobilidade.rio/gps/sppo
+          GTFS_URL: https://example.invalid/unused.zip
+        run: uv run alembic upgrade head
+
+      - name: SAM build
+        run: sam build
+
+      - name: SAM deploy
+        run: |
+          sam deploy \
+            --stack-name vambora-backend \
+            --region sa-east-1 \
+            --resolve-s3 \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              DatabaseUrl="${{ secrets.DATABASE_URL }}" \
+              AdminToken="${{ secrets.ADMIN_TOKEN }}" \
+              CorsAllowOrigins="${{ secrets.CORS_ALLOW_ORIGINS }}"
+
+      - name: Smoke test /health
+        run: |
+          url=$(aws cloudformation describe-stacks \
+            --stack-name vambora-backend --region sa-east-1 \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
+          echo "API: $url"
+          code=$(curl -s -o /dev/null -w '%{http_code}' "${url%/}/health")
+          echo "GET /health -> $code"
+          test "$code" = "200"

@@ -33,6 +33,7 @@ from vambora.adapters.outbound.providers.sppo_client import SppoClient
 from vambora.adapters.outbound.routing.otp_client import OtpClient
 from vambora.adapters.outbound.snapshots.local_store import LocalSnapshotStore
 from vambora.application.commands.build_snapshot import BuildSnapshot
+from vambora.application.commands.compact_tracking_data import CompactTrackingData
 from vambora.application.commands.delete_alert_rule import DeleteAlertRule
 from vambora.application.commands.evaluate_alerts import EvaluateAlerts
 from vambora.application.commands.import_gtfs_catalog import ImportGtfsCatalog
@@ -83,12 +84,15 @@ class Container:
     delete_alert_rule: DeleteAlertRule
     list_alert_rules: ListAlertRules
     evaluate_alerts: EvaluateAlerts
+    compact_tracking_data: CompactTrackingData
 
 
 def build_container(settings: Settings) -> Container:
-    db = Database(settings.database_url)
+    db = Database(settings.database_url, null_pool=settings.db_null_pool)
     http_client = httpx.AsyncClient()
-    vehicle_repository = PostgresVehiclePositionRepository(db)
+    vehicle_repository = PostgresVehiclePositionRepository(
+        db, store_raw=settings.store_raw_payload
+    )
     catalog_repository = PostgresCatalogRepository(db)
     prediction_repository = PostgresPredictionRepository(db)
     alert_rule_repository = PostgresAlertRuleRepository(db)
@@ -144,6 +148,12 @@ def build_container(settings: Settings) -> Container:
             notifier=notifier,
             clock=clock,
             settings=settings,
+        ),
+        compact_tracking_data=CompactTrackingData(
+            repository=vehicle_repository,
+            clock=clock,
+            timescale=settings.db_timescale,
+            retention_hours=settings.retention_hours,
         ),
     )
 

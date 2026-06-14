@@ -32,6 +32,12 @@ jobs:
         run: uv run ruff check src tests
       - name: Mypy (strict)
         run: uv run mypy src
+      - name: Lambda requirements in sync with lock
+        run: |
+          uv export --no-dev --no-emit-project --no-hashes --no-annotate --no-header \
+            > /tmp/requirements.expected
+          diff -u lambda/requirements.txt /tmp/requirements.expected \
+            || { echo "::error::lambda/requirements.txt is stale — run 'make lambda-requirements'"; exit 1; }
 
   test-unit:
     runs-on: ubuntu-latest

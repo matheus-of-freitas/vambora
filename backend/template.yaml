@@ -1,0 +1,101 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Vambora backend — serverless deployment (plan.md decision #15).
+  API on a Lambda function URL + a scheduled poller Lambda. Postgres is an
+  external managed database (Supabase free tier); no VM, Redis, or OTP.
+
+Parameters:
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+    Description: Async SQLAlchemy URL (postgresql+asyncpg://...) via the Supabase session pooler.
+  AdminToken:
+    Type: String
+    NoEcho: true
+    Description: Shared secret required on /admin/* (X-Admin-Token header).
+  CorsAllowOrigins:
+    Type: String
+    Default: https://vambora-web.pages.dev
+    Description: Comma-separated browser origins allowed via CORS.
+  SppoUrl:
+    Type: String
+    Default: https://dados.mobilidade.rio/gps/sppo
+  GtfsUrl:
+    Type: String
+    Default: https://hub.tumidata.org/dataset/d0978152-4bbc-4162-810b-7478c9f2b0f7/resource/f1b70820-9c4a-4295-bc98-c9beb04ba457/download/rdj.zip
+    Description: Only used by the local one-shot catalog import; the Lambdas never fetch it.
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [arm64]
+    MemorySize: 256
+    Timeout: 30
+    Environment:
+      Variables:
+        ENVIRONMENT: production
+        DATABASE_URL: !Ref DatabaseUrl
+        SPPO_URL: !Ref SppoUrl
+        GTFS_URL: !Ref GtfsUrl
+        # Serverless-specific shape (see operations/aws-serverless.md):
+        ROUTING_ENABLED: "false"      # OTP not deployed -> /trips/plan returns 503
+        DB_TIMESCALE: "false"         # plain Postgres: poller does rollup + retention
+        DB_NULL_POOL: "true"          # frozen sandboxes can't reuse pooled sockets
+        STORE_RAW_PAYLOAD: "false"    # drop raw JSONB — biggest size lever vs 500 MB
+        RETENTION_HOURS: "24"
+        SPPO_WINDOW_SECONDS: "90"     # 60s cadence: widen window so no fixes are missed
+        SNAPSHOT_DIR: /tmp/snapshots  # Lambda only has /tmp writable
+        LOG_LEVEL: INFO
+
+Resources:
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: vambora-api
+      Handler: vambora.adapters.inbound.aws.api_handler.handler
+      MemorySize: 512
+      Timeout: 30
+      # Caps blast radius and protects the Postgres pooler from a burst of
+      # cold starts opening connections. The only brake on a public URL.
+      ReservedConcurrentExecutions: 10
+      Environment:
+        Variables:
+          ADMIN_TOKEN: !Ref AdminToken
+          CORS_ALLOW_ORIGINS: !Ref CorsAllowOrigins
+      FunctionUrlConfig:
+        AuthType: NONE
+
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/vambora-api
+      RetentionInDays: 14
+
+  PollerFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: vambora-poller
+      Handler: vambora.adapters.inbound.aws.poller_handler.handler
+      MemorySize: 256
+      Timeout: 55
+      Events:
+        Tick:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: rate(1 minute)
+
+  PollerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/vambora-poller
+      RetentionInDays: 14
+
+Outputs:
+  ApiUrl:
+    Description: Public API base URL — set NEXT_PUBLIC_API_BASE_URL to this on Cloudflare Pages.
+    Value: !GetAtt ApiFunctionUrl.FunctionUrl

@@ -9,6 +9,7 @@ Each non-trivial architecture choice for `vambora-backend` lives here as a numbe
 | [0003](0003-postgres-timescaledb-postgis.md) | Accepted | PostgreSQL 16 + TimescaleDB + PostGIS as the single store |
 | [0004](0004-redis-cache-pubsub.md) | Accepted | Redis for cache and pub/sub |
 | [0005](0005-opentripplanner-routing.md) | Accepted | OpenTripPlanner v2 for multi-modal routing |
+| [0006](0006-aws-serverless-deploy.md) | Accepted | AWS serverless deployment (Lambda + managed Postgres); supersedes ADR-0011 hosting |
 
 ## When to write a new ADR
 

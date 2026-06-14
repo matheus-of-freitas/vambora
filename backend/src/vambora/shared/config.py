@@ -8,8 +8,27 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     database_url: str = Field(alias="DATABASE_URL")
-    database_url_sync: str = Field(alias="DATABASE_URL_SYNC")
-    redis_url: str = Field(alias="REDIS_URL")
+    # Sync URL is only needed where Alembic runs (local dev, CI deploy job);
+    # the Lambda runtime gets by with the async URL alone.
+    database_url_sync: str = Field(default="", alias="DATABASE_URL_SYNC")
+    # Not used by the current ingestion path (event bus is in-process) and
+    # absent entirely in the serverless deployment.
+    redis_url: str = Field(default="", alias="REDIS_URL")
+
+    # True when the database has TimescaleDB (local docker-compose). False on
+    # plain Postgres+PostGIS (Supabase free tier): migrations skip
+    # hypertable/cagg DDL and CompactTrackingData takes over rollup+retention.
+    db_timescale: bool = Field(default=True, alias="DB_TIMESCALE")
+    # Use NullPool — required on Lambda, where frozen sandboxes hold pooled
+    # sockets across invocations and resume with them half-closed.
+    db_null_pool: bool = Field(default=False, alias="DB_NULL_POOL")
+    # Persist the raw SPPO payload alongside parsed columns. Disable in prod:
+    # it is the single biggest size lever against a 500 MB free Postgres.
+    store_raw_payload: bool = Field(default=True, alias="STORE_RAW_PAYLOAD")
+    # Raw vehicle_positions rows older than this are purged by
+    # CompactTrackingData (no-op when db_timescale, where the retention
+    # policy owns it).
+    retention_hours: int = Field(default=24, alias="RETENTION_HOURS")
 
     sppo_url: str = Field(alias="SPPO_URL")
     sppo_poll_interval_seconds: int = Field(default=30, alias="SPPO_POLL_INTERVAL_SECONDS")
@@ -19,6 +38,19 @@ class Settings(BaseSettings):
     gtfs_date_override: str | None = Field(default=None, alias="GTFS_DATE_OVERRIDE")
 
     otp_url: str = Field(default="http://localhost:8080", alias="OTP_URL")
+    # Routing depends on OpenTripPlanner, which isn't deployed in the
+    # serverless setup. When false, POST /trips/plan returns 503 instead of
+    # failing against an unreachable OTP.
+    routing_enabled: bool = Field(default=True, alias="ROUTING_ENABLED")
+
+    # How many SPPO polls one poller invocation performs. The scheduled
+    # Lambda fires once a minute; one poll per invocation keeps it inside the
+    # Lambda free tier (sleeping for a second poll would bill the idle time).
+    polls_per_invocation: int = Field(default=1, alias="POLLS_PER_INVOCATION")
+
+    # Shared secret required on /admin/* when environment != "local". Empty
+    # means admin endpoints are disabled (503) in non-local environments.
+    admin_token: str = Field(default="", alias="ADMIN_TOKEN")
 
     # A transfer with less slack than this is flagged "apertada" (tight) in
     # the planner. Rio's GTFS has no transfers.txt, so this derived slack is

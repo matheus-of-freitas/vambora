@@ -11,6 +11,10 @@ from vambora.adapters.outbound.persistence.unit_of_work import Database
 from vambora.domain.shared.types import Coordinate
 from vambora.domain.tracking import HourlyLineStat, VehiclePosition
 
+# How many raw rows one purge DELETE removes before committing and looping.
+# Keeps locks short and transactions small on a busy table.
+_PURGE_BATCH = 10_000
+
 _HOURLY_STATS_SQL = text(
     """
     SELECT bucket, position_count, vehicle_count, avg_speed_kmh, max_speed_kmh
@@ -72,10 +76,50 @@ _HISTORY_SQL = text(
     """
 )
 
+# Recompute the trailing hourly buckets from raw rows and upsert them. The
+# plain-Postgres stand-in for the Timescale continuous-aggregate policy; safe
+# to run repeatedly since the last (still-filling) buckets get corrected on the
+# next pass.
+_ROLLUP_SQL = text(
+    """
+    INSERT INTO vehicle_positions_hourly
+        (bucket, line_id, position_count, vehicle_count, avg_speed_kmh, max_speed_kmh)
+    SELECT
+        date_trunc('hour', recorded_at) AS bucket,
+        line_id,
+        count(*)                    AS position_count,
+        count(DISTINCT vehicle_id)  AS vehicle_count,
+        avg(speed_kmh)              AS avg_speed_kmh,
+        max(speed_kmh)              AS max_speed_kmh
+    FROM vehicle_positions
+    WHERE recorded_at > NOW() - make_interval(hours => :hours)
+    GROUP BY 1, 2
+    ON CONFLICT (bucket, line_id) DO UPDATE SET
+        position_count = EXCLUDED.position_count,
+        vehicle_count  = EXCLUDED.vehicle_count,
+        avg_speed_kmh  = EXCLUDED.avg_speed_kmh,
+        max_speed_kmh  = EXCLUDED.max_speed_kmh
+    """
+)
+
+# ctid-limited batched delete: bound each statement's row count so retention on
+# a high-volume table never takes a long lock.
+_PURGE_SQL = text(
+    """
+    DELETE FROM vehicle_positions
+    WHERE ctid IN (
+        SELECT ctid FROM vehicle_positions
+        WHERE recorded_at < :cutoff
+        LIMIT :batch
+    )
+    """
+)
+
 
 class PostgresVehiclePositionRepository:
-    def __init__(self, db: Database) -> None:
+    def __init__(self, db: Database, *, store_raw: bool = True) -> None:
         self._db = db
+        self._store_raw = store_raw
 
     async def upsert_many(self, positions: list[VehiclePosition]) -> int:
         if not positions:
@@ -90,7 +134,10 @@ class PostgresVehiclePositionRepository:
                 "lat": p.coordinate.latitude,
                 "lon": p.coordinate.longitude,
                 "speed_kmh": p.speed_kmh,
-                "raw": json.dumps(p.raw),
+                # Dropping the raw payload (store_raw=False) is the biggest size
+                # lever on a small free-tier database; parsed columns are
+                # untouched.
+                "raw": json.dumps(p.raw) if self._store_raw else "{}",
             }
             for p in positions
         ]
@@ -130,6 +177,24 @@ class PostgresVehiclePositionRepository:
                 )
                 for r in result
             ]
+
+    async def refresh_hourly_rollup(self, *, hours: int) -> int:
+        async with self._db.connection() as conn:
+            result = await conn.execute(_ROLLUP_SQL, {"hours": hours})
+            return result.rowcount
+
+    async def purge_raw_before(self, *, cutoff: datetime) -> int:
+        total = 0
+        while True:
+            # Each batch is its own transaction (connection() wraps engine.begin),
+            # so committed deletes free space even if a later batch is interrupted.
+            async with self._db.connection() as conn:
+                result = await conn.execute(_PURGE_SQL, {"cutoff": cutoff, "batch": _PURGE_BATCH})
+            deleted = result.rowcount
+            total += deleted
+            if deleted < _PURGE_BATCH:
+                break
+        return total
 
 
 def _row_to_domain(row: Mapping[str, Any]) -> VehiclePosition:
