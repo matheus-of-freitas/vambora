@@ -24,9 +24,14 @@ def create_handler(settings: Settings, *, container: Container | None = None) ->
     return Mangum(app, lifespan="auto")
 
 
-# Built once per cold start, reused across warm invocations.
-_handler = create_handler(load_settings())
+# Built lazily on the first invocation (cold start) and reused while warm.
+# Lazy so importing this module doesn't require the full runtime env — keeps it
+# importable in tests and anywhere settings aren't configured.
+_handler: Mangum | None = None
 
 
 def handler(event: dict[str, Any], context: LambdaContext) -> dict[str, Any]:
+    global _handler
+    if _handler is None:
+        _handler = create_handler(load_settings())
     return _handler(event, context)
