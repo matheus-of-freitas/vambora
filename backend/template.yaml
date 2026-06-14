@@ -58,9 +58,12 @@ Resources:
       Handler: vambora.adapters.inbound.aws.api_handler.handler
       MemorySize: 512
       Timeout: 30
-      # Caps blast radius and protects the Postgres pooler from a burst of
-      # cold starts opening connections. The only brake on a public URL.
-      ReservedConcurrentExecutions: 10
+      # NOTE: no ReservedConcurrentExecutions. The account's total concurrency
+      # limit (10 on this account) already bounds how many invocations — and
+      # thus DB connections — can run at once, and reserving any amount on a
+      # limit-10 account is rejected (would leave unreserved below the minimum
+      # of 10). If the account limit is raised later, reinstate a reservation
+      # here to cap the function independently and protect the Postgres pooler.
       Environment:
         Variables:
           ADMIN_TOKEN: !Ref AdminToken
